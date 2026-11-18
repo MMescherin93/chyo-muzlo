@@ -352,7 +352,7 @@ function HostRoom({
 
         <button
           style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 8 }}
-          onClick={() => controller.forceVoting()}
+          onClick={() => controller.openVoting()}
         >
           Хватит слушать → к голосованию
         </button>
@@ -366,6 +366,7 @@ function HostRoom({
 
   // --- Голосование ---
   if (view.phase === 'voting') {
+    const votedSet = new Set(view.votedIds);
     return (
       <div className="screen" style={{ justifyContent: 'center', gap: 12 }}>
         <h1 style={{ color: 'var(--orange)', textAlign: 'center', margin: 0 }}>Кто скинул трек? 👀</h1>
@@ -373,25 +374,38 @@ function HostRoom({
           Проголосовало: {view.votesCount}/{players.length}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {players.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelected(p.id)}
-              style={{
-                background: selected === p.id ? 'var(--neon)' : 'var(--surface)',
-                color: selected === p.id ? 'var(--bg)' : 'var(--text)',
-                aspectRatio: '1',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-              }}
-            >
-              <span style={{ fontSize: 32 }}>{p.avatar}</span>
-              <span style={{ fontSize: 14 }}>{p.nickname}</span>
-            </button>
-          ))}
+          {players.map((p) => {
+            const hasVoted = votedSet.has(p.id);
+            return (
+              <button
+                key={p.id}
+                onClick={() => setSelected(p.id)}
+                style={{
+                  background: selected === p.id ? 'var(--neon)' : 'var(--surface)',
+                  color: selected === p.id ? 'var(--bg)' : 'var(--text)',
+                  minHeight: 104,
+                  padding: '10px 6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                }}
+              >
+                <span style={{ fontSize: 30 }}>{p.avatar}</span>
+                <span style={{ fontSize: 14 }}>{p.nickname}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: hasVoted ? (selected === p.id ? 'var(--bg)' : 'var(--neon)') : 'var(--muted)',
+                  }}
+                >
+                  {hasVoted ? '✅ проголосовал' : '⏳ ждём'}
+                </span>
+              </button>
+            );
+          })}
         </div>
         {voted ? (
           <div style={{ textAlign: 'center', color: 'var(--neon)' }}>Голос учтён ✅</div>
@@ -404,6 +418,12 @@ function HostRoom({
             ГОЛОСОВАТЬ
           </button>
         )}
+        <button
+          style={{ background: 'var(--cyan)', color: 'var(--bg)' }}
+          onClick={() => controller.revealNow()}
+        >
+          Показать результат
+        </button>
         <EndButton />
       </div>
     );
@@ -479,7 +499,15 @@ function HostRoom({
           ВЫЙТИ
         </button>
       ) : (
-        <EndButton />
+        <>
+          <button
+            style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 12 }}
+            onClick={() => controller.nextRound()}
+          >
+            Следующий трек →
+          </button>
+          <EndButton />
+        </>
       )}
 
       {view.phase === 'finished' && (

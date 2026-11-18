@@ -6,6 +6,7 @@ import Lobby from '../pages/Lobby';
 import Vote from '../pages/Vote';
 import Reveal from '../pages/Reveal';
 import Final from '../pages/Final';
+import Playing from '../pages/Playing';
 
 export default function GuestApp({ onExit }: { onExit: () => void }) {
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -110,11 +111,7 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
 
   switch (room.phase) {
     case 'playing':
-      return (
-        <div className="screen" style={{ alignItems: 'center', justifyContent: 'center' }}>
-          🎧 Слушаем… трек играет у хоста
-        </div>
-      );
+      return <Playing room={room} />;
     case 'voting':
       return <Vote room={room} onVote={(id) => sync?.castVote(id)} />;
     case 'reveal':

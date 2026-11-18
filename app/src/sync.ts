@@ -5,11 +5,8 @@
  * Гости шлют «намерения» (join / track / vote). Всё внутри одной Wi-Fi сети.
  */
 
-import { GameEngine, newId, pickExcerptLengthSeconds, type Room } from '@muzlo/shared';
+import { GameEngine, newId, type Room } from '@muzlo/shared';
 import { toRoomView, type RoomView } from './room-view';
-
-const VOTE_MS = 15_000;
-const REVEAL_MS = 15_000;
 
 export function getOrCreateUid(): string {
   let uid = localStorage.getItem('muzlo_uid');
@@ -49,7 +46,6 @@ function openSocket(): Promise<WebSocket> {
 // ---------------------------------------------------------------------------
 
 export class HostController {
-  private timers: ReturnType<typeof setTimeout>[] = [];
   private processedTracks = new Set<string>();
   private codeValue = '';
 
@@ -57,10 +53,8 @@ export class HostController {
     private engine: GameEngine,
     private ws: WebSocket,
     code: string,
-    timers: ReturnType<typeof setTimeout>[],
   ) {
     this.codeValue = code;
-    this.timers = timers;
     this.ws.onmessage = (ev: MessageEvent) => this.onMessage(ev);
   }
 
@@ -69,7 +63,6 @@ export class HostController {
     durationMinutes: number,
     onView: (v: RoomView) => void,
   ): Promise<HostController> {
-    const timers: ReturnType<typeof setTimeout>[] = [];
     let ws: WebSocket | null = null;
 
     const engine = new GameEngine({
@@ -80,13 +73,13 @@ export class HostController {
         }
       },
       onRoundStart: () => {
-        timers.push(setTimeout(() => engine.openVoting(), pickExcerptLengthSeconds() * 1000));
+        /* раунды переключает хост кнопками */
       },
       onVoteOpen: () => {
-        timers.push(setTimeout(() => engine.reveal(), VOTE_MS));
+        /* результат показывает хост кнопкой */
       },
       onReveal: () => {
-        timers.push(setTimeout(() => engine.nextRound(), REVEAL_MS));
+        /* следующий трек запускает хост кнопкой */
       },
       onFinish: () => {
         /* финальный state уходит через onState */
@@ -97,7 +90,7 @@ export class HostController {
     ws = await openSocket();
     ws.send(JSON.stringify({ t: 'host', room: room.code }));
 
-    const controller = new HostController(engine, ws, room.code, timers);
+    const controller = new HostController(engine, ws, room.code);
     // Сразу публикуем состояние (на случай, если гость подключится раньше).
     ws.send(JSON.stringify({ t: 'state', room: room.code, data: toRoomView(room) }));
     return controller;
@@ -138,22 +131,27 @@ export class HostController {
     return this.engine.submitTrack(this.engine.state.hostId, text);
   }
 
-  /** Досрочно открыть голосование (если плеер/треск уже прослушан). */
-  forceVoting() {
-    this.timers.forEach(clearTimeout);
-    this.timers = [];
+  /** Хост: закончили слушать → открыть голосование. */
+  openVoting() {
     this.engine.openVoting();
+  }
+
+  /** Хост: показать результат голосования. */
+  revealNow() {
+    this.engine.reveal();
+  }
+
+  /** Хост: следующий трек (или финал, если треки кончились). */
+  nextRound() {
+    this.engine.nextRound();
   }
 
   /** Хост завершает сессию для всех. */
   endGame() {
-    this.timers.forEach(clearTimeout);
-    this.timers = [];
     this.engine.endGame();
   }
 
   destroy() {
-    this.timers.forEach(clearTimeout);
     try { this.ws.close(); } catch { /* ignore */ }
   }
 }

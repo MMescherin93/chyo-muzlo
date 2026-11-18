@@ -1,5 +1,5 @@
 import React from 'react';
-import { buildEmbedHtml } from '@muzlo/shared';
+import { buildIframeUrl } from '@muzlo/shared';
 import type { RoomView } from '../room-view';
 
 interface Props {
@@ -8,9 +8,8 @@ interface Props {
 
 export default function Reveal({ room }: Props) {
   const track = room.currentTrack;
-  // Виджет Яндекс Музыки встраивается всегда (даже без albumId).
-  const embed = track
-    ? buildEmbedHtml({ type: 'track', trackId: track.trackId, albumId: track.albumId })
+  const src = track
+    ? buildIframeUrl({ type: 'track', trackId: track.trackId, albumId: track.albumId })
     : '';
 
   const standings = [...room.players].sort((a, b) => b.score - a.score);
@@ -20,10 +19,31 @@ export default function Reveal({ room }: Props) {
       <h1 style={{ color: 'var(--pink)', textAlign: 'center', margin: 0 }}>РАЗГАДКА 🎉</h1>
 
       {track && (
-        <div
-          style={{ borderRadius: 12, overflow: 'hidden', height: 180 }}
-          dangerouslySetInnerHTML={{ __html: embed }}
-        />
+        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+          <iframe
+            title="Трек"
+            src={src}
+            allow="autoplay; encrypted-media"
+            style={{ width: '100%', height: 180, border: 'none', pointerEvents: 'none' }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(10,10,18,0.78)',
+              color: 'var(--neon)',
+              fontSize: 12,
+              fontWeight: 700,
+              textAlign: 'center',
+              padding: '6px 8px',
+              pointerEvents: 'none',
+            }}
+          >
+            🔒 Плеером управляет хост
+          </div>
+        </div>
       )}
 
       {track?.title && (

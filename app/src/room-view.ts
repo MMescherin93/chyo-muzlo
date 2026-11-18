@@ -26,6 +26,8 @@ export interface RoomView {
   reveal?: { comment: string; scores: Record<string, number> };
   roundIndex: number;
   votesCount: number;
+  /** id игроков, которые уже проголосовали в текущем раунде. */
+  votedIds: string[];
 }
 
 /** Превращает внутреннее состояние движка в снимок для UI/сети. */
@@ -63,5 +65,6 @@ export function toRoomView(room: Room): RoomView {
     reveal: round?.reveal,
     roundIndex: room.currentRound,
     votesCount: round ? Object.keys(round.votes).length : 0,
+    votedIds: round ? Object.keys(round.votes) : [],
   };
 }
