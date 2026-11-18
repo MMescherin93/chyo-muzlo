@@ -18,6 +18,14 @@ npm run dev      # http://localhost:5173
 
 Или установи готовый **`chyo-muzlo-debug.apk`** из корня проекта.
 
+### Скачать APK на телефон
+
+Свежая сборка всегда здесь — ссылка открывается с телефона без входа в GitHub:
+
+**https://github.com/MMescherin93/chyo-muzlo/releases/latest/download/chyo-muzlo-debug.apk**
+
+Страница релизов: https://github.com/MMescherin93/chyo-muzlo/releases
+
 Полная инструкция — [SETUP.md](SETUP.md).
 
 ## Структура
