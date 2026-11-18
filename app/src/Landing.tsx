@@ -12,7 +12,7 @@ export default function Landing({ onCreate, onJoin }: Props) {
         ЧЬЁ МУЗЛО?!
       </h1>
       <div style={{ color: 'var(--muted)', textAlign: 'center', marginBottom: 16 }}>
-        Парти-игра про музыкальные вкусы друзей
+        Пати-игра про музыкальные вкусы друзей
       </div>
 
       <button style={{ background: 'var(--pink)', color: 'var(--bg)' }} onClick={onCreate}>
