@@ -1,0 +1,10 @@
+{
+  "name": "server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Локальный хост-сервер: раздаёт приложение и связывает хоста с гостями по WebSocket",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
