@@ -85,19 +85,18 @@ export function parseShareInput(input: string): ShareInput | null {
 }
 
 /**
- * URL официального iframe-плеера для отображения трека (обложка + название +
- * исполнитель). Подходит для экрана раскрытия на ВСЕХ устройствах.
+ * URL официального iframe-плеера Яндекс Музыки.
  *
- * NOTE: точный формат iframe сверьте с текущим виджетом ЯМузыки:
- *   https://music.yandex.ru/iframe/#track/{trackId}/{albumId}
- * Если albumId нет (короткая ссылка), надёжнее встроить страницу трека.
+ * Виджет поддерживает два маршрута (это видно в его роутере):
+ *   #track/{trackId}/{albumId}  — если известен альбом
+ *   #track/{trackId}            — если альбома нет (короткая ссылка)
+ * Страница трека целиком НЕ встраивается (X-Frame-Options / frame-ancestors 'self'),
+ * а сам виджет /iframe/ — встраивается свободно.
  */
 export function buildIframeUrl(link: ParsedLink): string {
-  if (link.albumId) {
-    return `https://music.yandex.ru/iframe/#track/${link.trackId}/${link.albumId}`;
-  }
-  // Без albumId iframe-эмбед может не открыться — отдаём страницу трека.
-  return buildTrackPageUrl(link.trackId);
+  return link.albumId
+    ? `https://music.yandex.ru/iframe/#track/${link.trackId}/${link.albumId}`
+    : `https://music.yandex.ru/iframe/#track/${link.trackId}`;
 }
 
 /** Прямая страница трека (используется для воспроизведения в WebView хоста). */

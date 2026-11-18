@@ -328,18 +328,14 @@ function HostRoom({
           Раунд {view.roundIndex + 1} · включи трек · слышит вся комната
         </div>
 
-        {track && track.albumId ? (
+        {track ? (
           <iframe
-            title="yandex-music"
+            title="Яндекс Музыка"
             src={src}
             allow="autoplay; encrypted-media"
             style={{ width: '100%', height: 200, border: 'none', borderRadius: 12 }}
           />
-        ) : (
-          <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
-            Для этой ссылки плеер не встроить — открой трек по кнопке ниже.
-          </div>
-        )}
+        ) : null}
 
         <a
           href={track?.url}
