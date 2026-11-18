@@ -114,6 +114,7 @@ function HostRoom({
   const [trackError, setTrackError] = useState('');
   const [trackSent, setTrackSent] = useState(false);
   const [joinOrigin, setJoinOrigin] = useState(location.origin);
+  const [copied, setCopied] = useState(false);
 
   // Локальный сервер подскажет адрес для гостей (LAN-IP), даже если хост
   // открыл приложение через localhost.
@@ -139,6 +140,28 @@ function HostRoom({
     if (!selected) return;
     controller.castVote(selected);
     setVoted(true);
+  };
+
+  const copyJoinLink = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(joinUrl);
+      } else {
+        // LAN-адрес по HTTP — не secure context, используем старый способ.
+        const ta = document.createElement('textarea');
+        ta.value = joinUrl;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* не удалось скопировать — ссылка и так видна на экране */
+    }
   };
 
   const addTrack = () => {
@@ -194,6 +217,26 @@ function HostRoom({
         </div>
         <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, wordBreak: 'break-all' }}>
           {isPublicOrigin ? `QR ведёт на ${joinUrl}` : 'Код комнаты — для подключения гостей'}
+        </div>
+
+        <div
+          style={{
+            background: 'var(--surface)',
+            borderRadius: 12,
+            padding: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Ссылка для гостей:</div>
+          <div style={{ color: 'var(--neon)', fontSize: 13, wordBreak: 'break-all' }}>{joinUrl}</div>
+          <button
+            style={{ background: 'var(--cyan)', color: 'var(--bg)', fontSize: 15 }}
+            onClick={copyJoinLink}
+          >
+            {copied ? 'Скопировано ✅' : '📋 Скопировать ссылку'}
+          </button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 8 }}>
