@@ -181,9 +181,11 @@ export class GameEngine {
     this.emit();
   }
 
+  /** Голосовать можно во время прослушивания и в фазе голосования. */
   castVote(playerId: string, votedForId: string): void {
     const round = this.currentRoundState();
-    if (this.room.phase !== 'voting' || !round) return;
+    if (!round) return;
+    if (this.room.phase !== 'playing' && this.room.phase !== 'voting') return;
     round.votes[playerId] = votedForId;
     this.emit();
   }

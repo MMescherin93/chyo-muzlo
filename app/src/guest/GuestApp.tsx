@@ -111,7 +111,7 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
 
   switch (room.phase) {
     case 'playing':
-      return <Playing room={room} />;
+      return <Playing room={room} onVote={(id) => sync?.castVote(id)} />;
     case 'voting':
       return <Vote room={room} onVote={(id) => sync?.castVote(id)} />;
     case 'reveal':

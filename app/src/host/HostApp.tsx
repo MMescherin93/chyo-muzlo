@@ -315,17 +315,18 @@ function HostRoom({
     );
   }
 
-  // --- Проигрывание ---
-  if (view.phase === 'playing') {
+  // --- Прослушивание + голосование одновременно ---
+  if (view.phase === 'playing' || view.phase === 'voting') {
     const track = view.currentTrack;
     const src = track
       ? buildIframeUrl({ type: 'track', trackId: track.trackId, albumId: track.albumId })
       : '';
+    const votedSet = new Set(view.votedIds);
     return (
       <div className="screen" style={{ gap: 12 }}>
         <h1 style={{ color: 'var(--cyan)', textAlign: 'center', margin: 0 }}>КТО ЭТО СКИНУЛ? 🤔</h1>
         <div style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
-          Раунд {view.roundIndex + 1} · включи трек · слышит вся комната
+          Раунд {view.roundIndex + 1} · голосуй, пока играет трек
         </div>
 
         {track ? (
@@ -333,7 +334,7 @@ function HostRoom({
             title="Яндекс Музыка"
             src={src}
             allow="autoplay; encrypted-media"
-            style={{ width: '100%', height: 200, border: 'none', borderRadius: 12 }}
+            style={{ width: '100%', height: 190, border: 'none', borderRadius: 12 }}
           />
         ) : null}
 
@@ -341,38 +342,15 @@ function HostRoom({
           href={track?.url}
           target="_blank"
           rel="noreferrer"
-          style={{ color: 'var(--neon)', textAlign: 'center' }}
+          style={{ color: 'var(--neon)', textAlign: 'center', fontSize: 13 }}
         >
           ▶ Открыть трек в Яндекс Музыке (в новой вкладке)
         </a>
 
-        <div style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>
-          {track?.title ? `Сейчас: ${track.title}` : 'Слушаем…'}
-        </div>
-
-        <button
-          style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 8 }}
-          onClick={() => controller.openVoting()}
-        >
-          Хватит слушать → к голосованию
-        </button>
-
-        <div style={{ marginTop: 'auto' }}>
-          <EndButton />
-        </div>
-      </div>
-    );
-  }
-
-  // --- Голосование ---
-  if (view.phase === 'voting') {
-    const votedSet = new Set(view.votedIds);
-    return (
-      <div className="screen" style={{ justifyContent: 'center', gap: 12 }}>
-        <h1 style={{ color: 'var(--orange)', textAlign: 'center', margin: 0 }}>Кто скинул трек? 👀</h1>
         <div style={{ color: 'var(--muted)', textAlign: 'center' }}>
           Проголосовало: {view.votesCount}/{players.length}
         </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {players.map((p) => {
             const hasVoted = votedSet.has(p.id);
@@ -383,8 +361,8 @@ function HostRoom({
                 style={{
                   background: selected === p.id ? 'var(--neon)' : 'var(--surface)',
                   color: selected === p.id ? 'var(--bg)' : 'var(--text)',
-                  minHeight: 104,
-                  padding: '10px 6px',
+                  minHeight: 100,
+                  padding: '8px 6px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -392,7 +370,7 @@ function HostRoom({
                   gap: 2,
                 }}
               >
-                <span style={{ fontSize: 30 }}>{p.avatar}</span>
+                <span style={{ fontSize: 28 }}>{p.avatar}</span>
                 <span style={{ fontSize: 14 }}>{p.nickname}</span>
                 <span
                   style={{
@@ -407,6 +385,7 @@ function HostRoom({
             );
           })}
         </div>
+
         {voted ? (
           <div style={{ textAlign: 'center', color: 'var(--neon)' }}>Голос учтён ✅</div>
         ) : (
@@ -418,12 +397,14 @@ function HostRoom({
             ГОЛОСОВАТЬ
           </button>
         )}
+
         <button
-          style={{ background: 'var(--cyan)', color: 'var(--bg)' }}
+          style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 4 }}
           onClick={() => controller.revealNow()}
         >
           Показать результат
         </button>
+
         <EndButton />
       </div>
     );
