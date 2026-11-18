@@ -1,0 +1,17 @@
+{
+  "name": "muzlo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "«Чьё музло?!» — одно веб-приложение (PWA) для хоста и гостей",
+  "workspaces": [
+    "shared",
+    "app"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build:shared": "npm run build -w @muzlo/shared",
+    "dev": "npm run dev -w app",
+    "build": "npm run build -w app",
+    "preview": "npm run preview -w app"
+  }
+}

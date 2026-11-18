@@ -1,0 +1,16 @@
+{
+  "name": "@muzlo/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Общая чистая логика «Чьё музло?!»: скоринг, комментарии, ссылки, движок",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  }
+}

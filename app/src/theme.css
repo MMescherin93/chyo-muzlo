@@ -1,0 +1,56 @@
+/* Тема: мемный, кислотный, неоновый на тёмном фоне. */
+:root {
+  --bg: #0a0a12;
+  --surface: #14141f;
+  --neon: #d9ff00;
+  --pink: #ff2ec4;
+  --cyan: #00e5ff;
+  --orange: #ff8a00;
+  --text: #f2f2f7;
+  --muted: #7a7a8a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  /* Комиксный/жирный шрифт (аналог Impact). Подключите свой через @font-face. */
+  font-family: 'Arial Black', Impact, 'Segoe UI', system-ui, sans-serif;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 20px;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+input {
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid #2a2a3a;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 18px;
+  width: 100%;
+}
+
+.screen {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Чьё музло?!</string>
+    <string name="title_activity_main">Чьё музло?!</string>
+    <string name="package_name">com.muzlo.app</string>
+    <string name="custom_url_scheme">com.muzlo.app</string>
+</resources>

@@ -1,0 +1,28 @@
+# Зависимости
+node_modules/
+
+# Сборка
+dist/
+build/
+
+# Окружение (секреты)
+.env
+.env.local
+.env.*.local
+
+# Android (Capacitor) — локальные артефакты и SDK-путь
+app/android/local.properties
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/capacitor-cordova-android-plugins/build/
+*.apk
+*.aab
+*.keystore
+
+# Логи / ОС / редактор
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
