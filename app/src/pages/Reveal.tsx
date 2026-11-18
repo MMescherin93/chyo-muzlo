@@ -8,9 +8,12 @@ interface Props {
 
 export default function Reveal({ room }: Props) {
   const track = room.currentTrack;
-  const embed = track
-    ? buildEmbedHtml({ type: 'track', trackId: track.trackId, albumId: track.albumId })
-    : '';
+  // iframe-эмбед корректно работает только при наличии albumId;
+  // без него Яндекс отдаёт страницу, которую нельзя встроить.
+  const embed =
+    track && track.albumId
+      ? buildEmbedHtml({ type: 'track', trackId: track.trackId, albumId: track.albumId })
+      : '';
 
   const standings = [...room.players].sort((a, b) => b.score - a.score);
 
@@ -18,7 +21,7 @@ export default function Reveal({ room }: Props) {
     <div className="screen" style={{ gap: 12 }}>
       <h1 style={{ color: 'var(--pink)', textAlign: 'center', margin: 0 }}>РАЗГАДКА 🎉</h1>
 
-      {track && (
+      {track && track.albumId && (
         <div
           style={{ borderRadius: 12, overflow: 'hidden', height: 180 }}
           dangerouslySetInnerHTML={{ __html: embed }}

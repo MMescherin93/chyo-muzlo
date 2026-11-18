@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { buildIframeUrl, parseShareInput } from '@muzlo/shared';
+import { buildIframeUrl, buildTrackPageUrl, parseShareInput } from '@muzlo/shared';
 import { HostController } from '../sync';
 import { useWakeLock } from '../useWakeLock';
+import { closePlayer, isNativeApp, openPlayer } from '../player';
 import type { RoomView } from '../room-view';
 
 const DURATIONS = [15, 30, 60];
@@ -116,6 +117,30 @@ function HostRoom({
   const [trackText, setTrackText] = useState('');
   const [trackError, setTrackError] = useState('');
   const [trackSent, setTrackSent] = useState(false);
+
+  const playing = view.phase === 'playing';
+  const trackUrl = view.currentTrack
+    ? view.currentTrack.url && /^https?:/.test(view.currentTrack.url)
+      ? view.currentTrack.url
+      : buildTrackPageUrl(view.currentTrack.trackId)
+    : '';
+
+  // В APK: автоматически открываем встроенный плеер на раунде и закрываем вне его.
+  useEffect(() => {
+    if (!isNativeApp) return;
+    if (playing && trackUrl) {
+      void openPlayer(trackUrl);
+    } else {
+      void closePlayer();
+    }
+  }, [playing, trackUrl]);
+
+  // Закрываем плеер при уходе с экрана.
+  useEffect(() => {
+    return () => {
+      void closePlayer();
+    };
+  }, []);
 
   const castVote = () => {
     if (!selected) return;
@@ -263,28 +288,57 @@ function HostRoom({
     return (
       <div className="screen" style={{ gap: 12 }}>
         <h1 style={{ color: 'var(--cyan)', textAlign: 'center', margin: 0 }}>КТО ЭТО СКИНУЛ? 🤔</h1>
-        <div style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
-          Раунд {view.roundIndex + 1} · нажми Play в плеере · слышит вся комната
-        </div>
-        {track && (
-          <iframe
-            title="yandex-music"
-            src={src}
-            allow="autoplay; encrypted-media"
-            style={{ width: '100%', height: 180, border: 'none', borderRadius: 12 }}
-          />
+
+        {isNativeApp ? (
+          <>
+            <div style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 14 }}>
+              Плеер Яндекс Музыки открывается прямо в приложении. Нажми ▶ в нём — звук слышит вся комната.
+            </div>
+            <button
+              style={{ background: 'var(--cyan)', color: 'var(--bg)' }}
+              onClick={() => trackUrl && void openPlayer(trackUrl)}
+            >
+              ▶ Открыть плеер
+            </button>
+            <button
+              style={{ background: 'var(--surface)', color: 'var(--text)', fontSize: 14 }}
+              onClick={() => void closePlayer()}
+            >
+              Закрыть плеер
+            </button>
+            {track?.title ? (
+              <div style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
+                Сейчас играет: {track.title}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
+              Раунд {view.roundIndex + 1} · нажми Play в плеере · слышит вся комната
+            </div>
+            {track && track.albumId && (
+              <iframe
+                title="yandex-music"
+                src={src}
+                allow="autoplay; encrypted-media"
+                style={{ width: '100%', height: 180, border: 'none', borderRadius: 12 }}
+              />
+            )}
+            <a
+              href={track?.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--neon)', textAlign: 'center' }}
+            >
+              Открыть трек в Яндекс Музыке →
+            </a>
+            <div style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
+              {track?.title ? `Сейчас: ${track.title}` : 'Слушаем…'}
+            </div>
+          </>
         )}
-        <a
-          href={track?.url}
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: 'var(--neon)', textAlign: 'center' }}
-        >
-          Не играет? Открыть трек в Яндекс Музыке →
-        </a>
-        <div style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
-          {track?.title ? `Сейчас: ${track.title}` : 'Слушаем…'}
-        </div>
+
         <div style={{ marginTop: 'auto' }}>
           <EndButton />
         </div>
