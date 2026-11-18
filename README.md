@@ -26,6 +26,9 @@ npm run host
 Чьё музло/
 ├── README.md
 ├── SETUP.md                   # как запустить и играть
+├── start.cmd                  # запуск в один клик (сервер + браузер)
+├── launcher.ps1               # логика запуска
+├── assets/muzlo.ico           # иконка ярлыка
 ├── docs/
 │   ├── architecture.md        # стек, решения, схема WS-релея
 │   └── technical-spec.md      # ТЗ (правила очков и т.д.)
