@@ -10,7 +10,9 @@ export default function App() {
   const hasCode = !!new URLSearchParams(location.search).get('code');
   const [mode, setMode] = useState<Mode>(hasCode ? 'guest' : 'landing');
 
-  if (mode === 'host') return <HostApp />;
-  if (mode === 'guest') return <GuestApp />;
+  const backToLanding = () => setMode('landing');
+
+  if (mode === 'host') return <HostApp onExit={backToLanding} />;
+  if (mode === 'guest') return <GuestApp onExit={backToLanding} />;
   return <Landing onCreate={() => setMode('host')} onJoin={() => setMode('guest')} />;
 }
