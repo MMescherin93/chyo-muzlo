@@ -9,6 +9,8 @@ export default function Join({ initialCode, onJoin }: Props) {
   const [code, setCode] = useState(initialCode);
   const [nickname, setNickname] = useState('');
 
+  // Пришли по ссылке с кодом — поле ввода комнаты не нужно.
+  const hasCode = /^\d{4}$/.test(initialCode);
   const canJoin = nickname.trim().length > 0 && code.trim().length === 4;
 
   const join = () => {
@@ -20,12 +22,18 @@ export default function Join({ initialCode, onJoin }: Props) {
     <div className="screen" style={{ justifyContent: 'center', gap: 16 }}>
       <h1 style={{ color: 'var(--neon)', textAlign: 'center', fontSize: 42, margin: 0 }}>ЧЬЁ МУЗЛО?!</h1>
 
-      <input
-        placeholder="Код комнаты (4 цифры)"
-        value={code}
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-        inputMode="numeric"
-      />
+      {hasCode ? (
+        <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
+          Комната <span style={{ color: 'var(--neon)', fontWeight: 900 }}>{initialCode}</span>
+        </div>
+      ) : (
+        <input
+          placeholder="Код комнаты (4 цифры)"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          inputMode="numeric"
+        />
+      )}
 
       <input
         placeholder="Твой ник"
