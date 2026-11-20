@@ -25,45 +25,59 @@ const USE_TUNNEL = process.argv.includes('--tunnel') || process.env.MUZLO_TUNNEL
 
 /** Публичный адрес туннеля Cloudflare (появляется асинхронно). */
 let publicOrigin = null;
+/** 'off' | 'starting' | 'on' | 'error' */
+let tunnelStatus = 'off';
+let tunnelError = null;
 /** Процесс cloudflared (если запущен). */
 let tunnelProcess = null;
 
 function startTunnel() {
-  try {
-    tunnelProcess = spawn(
-      'cloudflared',
-      ['tunnel', '--url', `http://127.0.0.1:${PORT}`, '--no-autoupdate'],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-  } catch {
-    console.log('⚠️  cloudflared не найден. Установи: winget install Cloudflare.cloudflared');
-    return;
-  }
+  if (tunnelProcess || publicOrigin) return;
+
+  tunnelStatus = 'starting';
+  tunnelError = null;
+
+  const child = spawn(
+    'cloudflared',
+    ['tunnel', '--url', `http://127.0.0.1:${PORT}`, '--no-autoupdate'],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  tunnelProcess = child;
 
   const onData = (buf) => {
-    const text = buf.toString();
-    const m = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+    const m = buf.toString().match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
     if (m && !publicOrigin) {
       publicOrigin = m[0];
+      tunnelStatus = 'on';
       console.log('');
       console.log(`  🌍 Публичная ссылка (Cloudflare Tunnel): ${publicOrigin}`);
       console.log('     Эту ссылку можно отправить удалённым игрокам.');
       console.log('');
     }
   };
-  tunnelProcess.stdout.on('data', onData);
-  tunnelProcess.stderr.on('data', onData);
+  child.stdout.on('data', onData);
+  child.stderr.on('data', onData);
 
-  tunnelProcess.on('error', (err) => {
-    if (err.code === 'ENOENT') {
-      console.log('⚠️  cloudflared не найден. Установи: winget install Cloudflare.cloudflared');
-    } else {
-      console.log('⚠️  Ошибка туннеля:', err.message);
+  child.on('error', (err) => {
+    tunnelProcess = null;
+    tunnelStatus = 'error';
+    tunnelError =
+      err.code === 'ENOENT'
+        ? 'cloudflared не найден. Установи: winget install --id Cloudflare.cloudflared -e'
+        : err.message;
+    console.log('⚠️  ' + tunnelError);
+  });
+
+  child.on('exit', (code) => {
+    tunnelProcess = null;
+    if (!publicOrigin) {
+      tunnelStatus = 'error';
+      tunnelError = tunnelError || `Туннель завершился (код ${code})`;
     }
   });
-  tunnelProcess.on('exit', (code) => console.log('Туннель остановлен (код', code, ')'));
+
   process.on('exit', () => {
-    try { tunnelProcess?.kill(); } catch { /* ignore */ }
+    try { child.kill(); } catch { /* ignore */ }
   });
 }
 
@@ -111,6 +125,22 @@ const server = http.createServer((req, res) => {
       JSON.stringify({
         origin: `http://${lanIp()}:${port}`,
         publicOrigin: publicOrigin || undefined,
+        tunnelStatus,
+        tunnelError: tunnelError || undefined,
+      }),
+    );
+    return;
+  }
+
+  // Включить/проверить публичный туннель Cloudflare (кнопка в лобби).
+  if (url.pathname === '/api/tunnel') {
+    if (req.method === 'POST') startTunnel();
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        status: tunnelStatus,
+        publicOrigin: publicOrigin || undefined,
+        error: tunnelError || undefined,
       }),
     );
     return;

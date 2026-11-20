@@ -10,6 +10,8 @@ const DURATIONS = [15, 30, 60];
 interface ServerInfo {
   origin: string;
   publicOrigin?: string;
+  tunnelStatus?: 'off' | 'starting' | 'on' | 'error';
+  tunnelError?: string;
 }
 
 /**
@@ -23,6 +25,7 @@ export default function HostApp() {
   const [host, setHost] = useState<HostController | null>(null);
   const [info, setInfo] = useState<ServerInfo | null>(null);
   const [error, setError] = useState('');
+  const [tunnelBusy, setTunnelBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +47,16 @@ export default function HostApp() {
       window.clearInterval(timer);
     };
   }, []);
+
+  const startTunnel = async () => {
+    setTunnelBusy(true);
+    try {
+      await fetch('/api/tunnel', { method: 'POST' });
+    } catch {
+      /* ignore */
+    }
+    setTunnelBusy(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -75,8 +88,15 @@ export default function HostApp() {
     );
   }
 
-  const inviteOrigin = info?.publicOrigin || info?.origin || location.origin;
-  return <HostLobby view={view} controller={host} inviteOrigin={inviteOrigin} />;
+  return (
+    <HostLobby
+      view={view}
+      controller={host}
+      info={info}
+      tunnelBusy={tunnelBusy}
+      onStartTunnel={startTunnel}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -84,12 +104,17 @@ export default function HostApp() {
 function HostLobby({
   view,
   controller,
-  inviteOrigin,
+  info,
+  tunnelBusy,
+  onStartTunnel,
 }: {
   view: RoomView;
   controller: HostController;
-  inviteOrigin: string;
+  info: ServerInfo | null;
+  tunnelBusy: boolean;
+  onStartTunnel: () => void;
 }) {
+  const inviteOrigin = info?.publicOrigin || info?.origin || location.origin;
   const players = view.players;
   const standings = [...players].sort((a, b) => b.score - a.score);
   const joinUrl = `${inviteOrigin}/?code=${view.code}`;
@@ -170,7 +195,9 @@ function HostLobby({
             gap: 8,
           }}
         >
-          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Ссылка-приглашение:</div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+            {info?.publicOrigin ? 'Публичная ссылка (интернет):' : 'Ссылка-приглашение (Wi-Fi):'}
+          </div>
           <div style={{ color: 'var(--neon)', fontSize: 13, wordBreak: 'break-all' }}>{joinUrl}</div>
           <button
             style={{ background: 'var(--cyan)', color: 'var(--bg)', fontSize: 15 }}
@@ -178,6 +205,29 @@ function HostLobby({
           >
             {copied ? 'Скопировано ✅' : '📋 Скопировать ссылку'}
           </button>
+
+          {!info?.publicOrigin && (
+            <>
+              <button
+                style={{ background: 'var(--surface)', color: 'var(--text)', fontSize: 14 }}
+                disabled={tunnelBusy || info?.tunnelStatus === 'starting'}
+                onClick={onStartTunnel}
+              >
+                {tunnelBusy || info?.tunnelStatus === 'starting'
+                  ? 'Поднимаем туннель… 10–20 сек'
+                  : '🌍 Публичная ссылка для удалённых'}
+              </button>
+              {info?.tunnelStatus === 'error' && info.tunnelError && (
+                <div style={{ color: 'var(--pink)', fontSize: 12 }}>{info.tunnelError}</div>
+              )}
+            </>
+          )}
+
+          {info?.publicOrigin && (
+            <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+              Ссылка работает через интернет (Cloudflare Tunnel).
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 4 }}>
