@@ -9,10 +9,10 @@ import { GameEngine, newId, type Room } from '@muzlo/shared';
 import { toRoomView, type RoomView } from './room-view';
 
 export function getOrCreateUid(): string {
-  let uid = localStorage.getItem('muzlo_uid');
+  let uid = sessionStorage.getItem('muzlo_uid');
   if (!uid) {
     uid = newId();
-    localStorage.setItem('muzlo_uid', uid);
+    sessionStorage.setItem('muzlo_uid', uid);
   }
   return uid;
 }
@@ -59,7 +59,6 @@ export class HostController {
   }
 
   static async create(
-    nickname: string,
     durationMinutes: number,
     onView: (v: RoomView) => void,
   ): Promise<HostController> {
@@ -86,7 +85,7 @@ export class HostController {
       },
     });
 
-    const room = engine.createRoom(nickname, durationMinutes);
+    const room = engine.createRoom(durationMinutes);
     ws = await openSocket();
     ws.send(JSON.stringify({ t: 'host', room: room.code }));
 
@@ -121,19 +120,9 @@ export class HostController {
     this.engine.start();
   }
 
-  /** Голос самого хоста (он тоже игрок). */
-  castVote(votedForId: string) {
-    this.engine.castVote(this.engine.state.hostId, votedForId);
-  }
-
-  /** Хост добавляет трек. */
-  submitTrack(text: string): boolean {
-    return this.engine.submitTrack(this.engine.state.hostId, text);
-  }
-
-  /** Хост: закончили слушать → открыть голосование. */
-  openVoting() {
-    this.engine.openVoting();
+  /** Хост меняет длительность партии до старта. */
+  setDuration(minutes: number) {
+    this.engine.setDuration(minutes);
   }
 
   /** Хост: показать результат голосования. */

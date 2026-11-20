@@ -2,22 +2,70 @@
  * Локальный хост-сервер «Чьё музло?!».
  *
  * Раздаёт собранное приложение (app/dist) и связывает хоста с гостями
- * по WebSocket. Никаких внешних сервисов — всё в одной локальной сети.
+ * по WebSocket. Работает в локальной сети, а с флагом --tunnel поднимает
+ * ещё и публичный туннель Cloudflare (cloudflared) для удалённых игроков.
  *
  * Запуск:
- *   npm run host      (соберёт app/dist и поднимет сервер)
+ *   npm run host          (локальная сеть)
+ *   npm run host:tunnel   (локальная сеть + публичная ссылка Cloudflare)
  */
 
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(__dirname, '../app/dist');
 const PORT = Number(process.env.PORT || 8080);
+const USE_TUNNEL = process.argv.includes('--tunnel') || process.env.MUZLO_TUNNEL === '1';
+
+/** Публичный адрес туннеля Cloudflare (появляется асинхронно). */
+let publicOrigin = null;
+/** Процесс cloudflared (если запущен). */
+let tunnelProcess = null;
+
+function startTunnel() {
+  try {
+    tunnelProcess = spawn(
+      'cloudflared',
+      ['tunnel', '--url', `http://127.0.0.1:${PORT}`, '--no-autoupdate'],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+  } catch {
+    console.log('⚠️  cloudflared не найден. Установи: winget install Cloudflare.cloudflared');
+    return;
+  }
+
+  const onData = (buf) => {
+    const text = buf.toString();
+    const m = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+    if (m && !publicOrigin) {
+      publicOrigin = m[0];
+      console.log('');
+      console.log(`  🌍 Публичная ссылка (Cloudflare Tunnel): ${publicOrigin}`);
+      console.log('     Эту ссылку можно отправить удалённым игрокам.');
+      console.log('');
+    }
+  };
+  tunnelProcess.stdout.on('data', onData);
+  tunnelProcess.stderr.on('data', onData);
+
+  tunnelProcess.on('error', (err) => {
+    if (err.code === 'ENOENT') {
+      console.log('⚠️  cloudflared не найден. Установи: winget install Cloudflare.cloudflared');
+    } else {
+      console.log('⚠️  Ошибка туннеля:', err.message);
+    }
+  });
+  tunnelProcess.on('exit', (code) => console.log('Туннель остановлен (код', code, ')'));
+  process.on('exit', () => {
+    try { tunnelProcess?.kill(); } catch { /* ignore */ }
+  });
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -59,7 +107,12 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/info') {
     const port = (req.headers.host || `localhost:${PORT}`).split(':')[1] || PORT;
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ origin: `http://${lanIp()}:${port}` }));
+    res.end(
+      JSON.stringify({
+        origin: `http://${lanIp()}:${port}`,
+        publicOrigin: publicOrigin || undefined,
+      }),
+    );
     return;
   }
 
@@ -173,11 +226,17 @@ wss.on('connection', (ws) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('');
-  console.log('  🎧 «Чьё музло?!» — локальная комната запущена');
+  console.log('  🎧 «Чьё музло?!» — лобби запущено');
   console.log('');
-  console.log(`  Хост (это устройство):  http://localhost:${PORT}`);
-  console.log(`  Гости (по ссылке):      http://${lanIp()}:${PORT}`);
+  console.log(`  Экран хоста:        http://localhost:${PORT}`);
+  console.log(`  Гости в Wi-Fi:      http://${lanIp()}:${PORT}`);
   console.log('');
-  console.log('  Осталось открыть ссылку «Хост», создать игру и позвать гостей.');
+  if (USE_TUNNEL) {
+    console.log('  Поднимаем туннель Cloudflare для удалённых игроков…');
+    startTunnel();
+  } else {
+    console.log('  Для удалённых игроков: npm run host:tunnel (нужен cloudflared).');
+  }
+  console.log('  Открой экран хоста — лобби создастся автоматически.');
   console.log('');
 });

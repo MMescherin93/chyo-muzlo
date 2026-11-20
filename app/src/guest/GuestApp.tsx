@@ -12,10 +12,10 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
   const [room, setRoom] = useState<RoomView | null>(null);
   const [sync, setSync] = useState<GuestSync | null>(null);
   const [code, setCode] = useState(
-    new URLSearchParams(location.search).get('code') ?? localStorage.getItem('muzlo_code') ?? '',
+    new URLSearchParams(location.search).get('code') ?? sessionStorage.getItem('muzlo_code') ?? '',
   );
   const [joined, setJoined] = useState(
-    () => !!(localStorage.getItem('muzlo_code') && localStorage.getItem('muzlo_nick')),
+    () => !!(sessionStorage.getItem('muzlo_code') && sessionStorage.getItem('muzlo_nick')),
   );
   const [status, setStatus] = useState<'connecting' | 'waiting' | 'error'>('connecting');
 
@@ -33,7 +33,7 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
         }
         inst = g;
         setSync(g);
-        const nick = localStorage.getItem('muzlo_nick') || '';
+        const nick = sessionStorage.getItem('muzlo_nick') || '';
         if (nick) g.join(nick);
         setStatus('waiting');
       })
@@ -60,8 +60,8 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
       <Join
         initialCode={code}
         onJoin={(c, nick) => {
-          localStorage.setItem('muzlo_code', c);
-          localStorage.setItem('muzlo_nick', nick);
+          sessionStorage.setItem('muzlo_code', c);
+          sessionStorage.setItem('muzlo_nick', nick);
           setCode(c);
           setJoined(true);
         }}
@@ -79,8 +79,8 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
         <button
           style={{ background: 'var(--pink)', color: 'var(--bg)' }}
           onClick={() => {
-            localStorage.removeItem('muzlo_code');
-            localStorage.removeItem('muzlo_nick');
+            sessionStorage.removeItem('muzlo_code');
+            sessionStorage.removeItem('muzlo_nick');
             setRoom(null);
             setSync(null);
             setJoined(false);
@@ -104,8 +104,8 @@ export default function GuestApp({ onExit }: { onExit: () => void }) {
 
   const exitRoom = () => {
     sync?.destroy();
-    localStorage.removeItem('muzlo_code');
-    localStorage.removeItem('muzlo_nick');
+    sessionStorage.removeItem('muzlo_code');
+    sessionStorage.removeItem('muzlo_nick');
     onExit();
   };
 

@@ -1,21 +1,65 @@
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { buildIframeUrl, parseShareInput } from '@muzlo/shared';
+import { buildIframeUrl } from '@muzlo/shared';
 import { HostController } from '../sync';
 import { useWakeLock } from '../useWakeLock';
 import type { RoomView } from '../room-view';
 
 const DURATIONS = [15, 30, 60];
 
-export default function HostApp({ onExit }: { onExit: () => void }) {
+interface ServerInfo {
+  origin: string;
+  publicOrigin?: string;
+}
+
+/**
+ * Экран-лобби (как в Jackbox): сам не играет и не загружает треки.
+ * Показывает код/QR/ссылку, ведёт раунды и играет музыку.
+ */
+export default function HostApp() {
   useWakeLock(true);
 
   const [view, setView] = useState<RoomView | null>(null);
   const [host, setHost] = useState<HostController | null>(null);
-  const [nickname, setNickname] = useState('');
-  const [duration, setDuration] = useState(15);
-  const [creating, setCreating] = useState(false);
+  const [info, setInfo] = useState<ServerInfo | null>(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch('/api/info')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!cancelled && d && d.origin) setInfo(d);
+        })
+        .catch(() => {
+          /* без сервера — остаёмся на location.origin */
+        });
+    };
+    load();
+    // Туннель Cloudflare поднимается асинхронно — подхватываем publicOrigin.
+    const timer = window.setInterval(load, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    HostController.create(15, setView)
+      .then((c) => {
+        if (cancelled) c.destroy();
+        else setHost(c);
+      })
+      .catch((e) => {
+        console.error(e);
+        if (!cancelled) setError('Не удалось создать комнату. Проверь, что сервер запущен (npm run host).');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -23,131 +67,41 @@ export default function HostApp({ onExit }: { onExit: () => void }) {
     };
   }, [host]);
 
-  const create = async () => {
-    if (!nickname.trim() || creating) return;
-    setCreating(true);
-    setError('');
-    try {
-      const c = await HostController.create(nickname.trim(), duration, setView);
-      setHost(c);
-    } catch (e) {
-      console.error(e);
-      setError('Не удалось подключиться к брокеру. Проверь интернет и попробуй ещё раз.');
-      setCreating(false);
-    }
-  };
-
-  const leave = () => {
-    host?.destroy();
-    onExit();
-  };
-
   if (!host || !view) {
-    if (creating) {
-      return (
-        <div className="screen" style={{ justifyContent: 'center', textAlign: 'center' }}>
-          Создаём комнату…
-        </div>
-      );
-    }
     return (
-      <div className="screen" style={{ justifyContent: 'center', gap: 16 }}>
-        <h1 style={{ color: 'var(--neon)', textAlign: 'center', margin: 0 }}>СОЗДАТЬ ИГРУ</h1>
-        <input
-          placeholder="Твой ник (хост)"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          maxLength={20}
-        />
-        <div style={{ display: 'flex', gap: 8 }}>
-          {DURATIONS.map((d) => (
-            <button
-              key={d}
-              onClick={() => setDuration(d)}
-              style={{
-                flex: 1,
-                background: duration === d ? 'var(--neon)' : 'var(--surface)',
-                color: duration === d ? 'var(--bg)' : 'var(--text)',
-              }}
-            >
-              {d} мин
-            </button>
-          ))}
-        </div>
-        {error && <div style={{ color: 'var(--pink)', textAlign: 'center' }}>{error}</div>}
-        <button
-          style={{ background: 'var(--pink)', color: 'var(--bg)' }}
-          disabled={!nickname.trim() || creating}
-          onClick={create}
-        >
-          {creating ? 'Создаём…' : 'СОЗДАТЬ КОМНАТУ'}
-        </button>
-        <button
-          style={{ background: 'transparent', color: 'var(--muted)', fontSize: 14 }}
-          onClick={onExit}
-        >
-          ← Назад
-        </button>
+      <div className="screen" style={{ justifyContent: 'center', textAlign: 'center' }}>
+        {error || 'Открываем лобби…'}
       </div>
     );
   }
 
-  return <HostRoom view={view} controller={host} onExit={leave} />;
+  const inviteOrigin = info?.publicOrigin || info?.origin || location.origin;
+  return <HostLobby view={view} controller={host} inviteOrigin={inviteOrigin} />;
 }
 
 // ---------------------------------------------------------------------------
 
-function HostRoom({
+function HostLobby({
   view,
   controller,
-  onExit,
+  inviteOrigin,
 }: {
   view: RoomView;
   controller: HostController;
-  onExit: () => void;
+  inviteOrigin: string;
 }) {
   const players = view.players;
+  const standings = [...players].sort((a, b) => b.score - a.score);
+  const joinUrl = `${inviteOrigin}/?code=${view.code}`;
+  const isPublicOrigin = !/localhost|127\.0\.0\.1/.test(inviteOrigin);
 
-  const [selected, setSelected] = useState<string | null>(null);
-  const [voted, setVoted] = useState(false);
-  const [trackText, setTrackText] = useState('');
-  const [trackError, setTrackError] = useState('');
-  const [trackSent, setTrackSent] = useState(false);
-  const [joinOrigin, setJoinOrigin] = useState(location.origin);
   const [copied, setCopied] = useState(false);
-
-  // Локальный сервер подскажет адрес для гостей (LAN-IP), даже если хост
-  // открыл приложение через localhost.
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/info')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((info) => {
-        if (!cancelled && info && info.origin) setJoinOrigin(info.origin);
-      })
-      .catch(() => {
-        /* статический хостинг без сервера — остаёмся на location.origin */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const isPublicOrigin = !/localhost|127\.0\.0\.1/.test(joinOrigin);
-  const joinUrl = `${joinOrigin}/?code=${view.code}`;
-
-  const castVote = () => {
-    if (!selected) return;
-    controller.castVote(selected);
-    setVoted(true);
-  };
 
   const copyJoinLink = async () => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(joinUrl);
       } else {
-        // LAN-адрес по HTTP — не secure context, используем старый способ.
         const ta = document.createElement('textarea');
         ta.value = joinUrl;
         ta.style.position = 'fixed';
@@ -160,31 +114,16 @@ function HostRoom({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* не удалось скопировать — ссылка и так видна на экране */
+      /* ссылка и так видна */
     }
   };
 
-  const addTrack = () => {
-    if (!parseShareInput(trackText)) {
-      setTrackError('Нужна ссылка на трек Яндекс Музыки');
-      setTrackSent(false);
-      return;
-    }
-    controller.submitTrack(trackText);
-    setTrackText('');
-    setTrackError('');
-    setTrackSent(true);
-  };
-
-  const standings = [...players].sort((a, b) => b.score - a.score);
-  const myCount = view.tracks.filter((t) => t.submittedBy === view.hostId).length;
-
-  const EndButton = ({ label = 'Завершить игру' }: { label?: string }) => (
+  const EndButton = () => (
     <button
       style={{ background: 'var(--danger, #ff3355)', color: '#fff', fontSize: 14 }}
       onClick={() => controller.endGame()}
     >
-      {label}
+      Завершить игру
     </button>
   );
 
@@ -193,7 +132,11 @@ function HostRoom({
     const canStart = players.length >= 2 && view.tracks.length > 0;
     return (
       <div className="screen" style={{ gap: 12 }}>
-        <h1 style={{ color: 'var(--neon)', textAlign: 'center', margin: 0 }}>ЛОББИ</h1>
+        <h1 style={{ color: 'var(--neon)', textAlign: 'center', margin: 0 }}>ЧЬЁ МУЗЛО?!</h1>
+        <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+          Лобби-экран. Игроки подключаются по ссылке или QR со своих телефонов.
+        </div>
+
         {isPublicOrigin ? (
           <div style={{ background: '#fff', padding: 12, borderRadius: 12, alignSelf: 'center' }}>
             <QRCodeSVG value={joinUrl} size={200} />
@@ -203,6 +146,7 @@ function HostRoom({
             Гости открывают то же приложение и вводят код вручную
           </div>
         )}
+
         <div
           style={{
             textAlign: 'center',
@@ -210,13 +154,10 @@ function HostRoom({
             fontWeight: 900,
             color: 'var(--neon)',
             letterSpacing: 10,
-            margin: '8px 0',
+            margin: '4px 0',
           }}
         >
           {view.code}
-        </div>
-        <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, wordBreak: 'break-all' }}>
-          {isPublicOrigin ? `QR ведёт на ${joinUrl}` : 'Код комнаты — для подключения гостей'}
         </div>
 
         <div
@@ -229,7 +170,7 @@ function HostRoom({
             gap: 8,
           }}
         >
-          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Ссылка для гостей:</div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Ссылка-приглашение:</div>
           <div style={{ color: 'var(--neon)', fontSize: 13, wordBreak: 'break-all' }}>{joinUrl}</div>
           <button
             style={{ background: 'var(--cyan)', color: 'var(--bg)', fontSize: 15 }}
@@ -239,51 +180,44 @@ function HostRoom({
           </button>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 4 }}>
           <span>Игроки: {players.length}</span>
           <span>Треков: {view.tracks.length}</span>
         </div>
 
-        <div>
-          <h3 style={{ margin: '4px 0 8px' }}>Можешь добавить свой трек</h3>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              placeholder="Ссылка на трек Яндекс Музыки"
-              value={trackText}
-              onChange={(e) => setTrackText(e.target.value)}
-            />
-            <button style={{ background: 'var(--pink)', color: 'var(--bg)' }} onClick={addTrack}>
-              ➕
-            </button>
-          </div>
-          {trackError && (
-            <div style={{ color: 'var(--pink)', fontSize: 13, marginTop: 6 }}>{trackError}</div>
-          )}
-          {trackSent && !trackError && (
-            <div style={{ color: 'var(--neon)', fontSize: 13, marginTop: 6 }}>
-              Трек добавлен ✅
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {players.length === 0 && (
+            <div style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 14 }}>
+              Ждём игроков…
             </div>
           )}
-          <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 6 }}>
-            Ты скинул(а): {myCount}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
           {players.map((p) => (
             <div
               key={p.id}
               style={{ background: 'var(--surface)', borderRadius: 12, padding: 10, display: 'flex', gap: 8 }}
             >
               <span>{p.avatar}</span>
-              <span style={{ flex: 1 }}>
-                {p.nickname}
-                {p.isHost ? ' 👑' : ''}
-              </span>
+              <span style={{ flex: 1 }}>{p.nickname}</span>
               <span style={{ color: 'var(--muted)' }}>
                 {view.tracks.filter((t) => t.submittedBy === p.id).length} треков
               </span>
             </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          {DURATIONS.map((d) => (
+            <button
+              key={d}
+              onClick={() => controller.setDuration(d)}
+              style={{
+                flex: 1,
+                background: view.durationMinutes === d ? 'var(--neon)' : 'var(--surface)',
+                color: view.durationMinutes === d ? 'var(--bg)' : 'var(--text)',
+              }}
+            >
+              {d} мин
+            </button>
           ))}
         </div>
 
@@ -292,7 +226,7 @@ function HostRoom({
           disabled={!canStart}
           onClick={() => controller.start()}
         >
-          ПОГНАЛИ! 🚀
+          НАЧАТЬ ИГРУ 🚀
         </button>
         {!canStart && (
           <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
@@ -300,33 +234,29 @@ function HostRoom({
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button style={{ flex: 1, background: 'var(--surface)', color: 'var(--text)' }} onClick={onExit}>
-            Выйти
-          </button>
-          <button
-            style={{ flex: 1, background: 'var(--danger, #ff3355)', color: '#fff' }}
-            onClick={() => controller.endGame()}
-          >
-            Завершить
-          </button>
-        </div>
+        <button
+          style={{ background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
+          onClick={() => window.location.reload()}
+        >
+          Новая комната
+        </button>
       </div>
     );
   }
 
-  // --- Прослушивание + голосование одновременно ---
+  // --- Прослушивание (голосуют только игроки) ---
   if (view.phase === 'playing' || view.phase === 'voting') {
     const track = view.currentTrack;
     const src = track
       ? buildIframeUrl({ type: 'track', trackId: track.trackId, albumId: track.albumId })
       : '';
     const votedSet = new Set(view.votedIds);
+
     return (
       <div className="screen" style={{ gap: 12 }}>
         <h1 style={{ color: 'var(--cyan)', textAlign: 'center', margin: 0 }}>КТО ЭТО СКИНУЛ? 🤔</h1>
         <div style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
-          Раунд {view.roundIndex + 1} · голосуй, пока играет трек
+          Раунд {view.roundIndex + 1} · игроки голосуют, пока играет трек
         </div>
 
         {track ? (
@@ -355,13 +285,12 @@ function HostRoom({
           {players.map((p) => {
             const hasVoted = votedSet.has(p.id);
             return (
-              <button
+              <div
                 key={p.id}
-                onClick={() => setSelected(p.id)}
                 style={{
-                  background: selected === p.id ? 'var(--neon)' : 'var(--surface)',
-                  color: selected === p.id ? 'var(--bg)' : 'var(--text)',
-                  minHeight: 100,
+                  background: 'var(--surface)',
+                  borderRadius: 12,
+                  minHeight: 92,
                   padding: '8px 6px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -376,27 +305,15 @@ function HostRoom({
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
-                    color: hasVoted ? (selected === p.id ? 'var(--bg)' : 'var(--neon)') : 'var(--muted)',
+                    color: hasVoted ? 'var(--neon)' : 'var(--muted)',
                   }}
                 >
                   {hasVoted ? '✅ проголосовал' : '⏳ ждём'}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
-
-        {voted ? (
-          <div style={{ textAlign: 'center', color: 'var(--neon)' }}>Голос учтён ✅</div>
-        ) : (
-          <button
-            style={{ background: 'var(--orange)', color: 'var(--bg)' }}
-            disabled={!selected}
-            onClick={castVote}
-          >
-            ГОЛОСОВАТЬ
-          </button>
-        )}
 
         <button
           style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 4 }}
@@ -424,28 +341,25 @@ function HostRoom({
         {view.phase === 'finished' ? 'ФИНАЛ 🏆' : 'РАЗГАДКА 🎉'}
       </h1>
 
-      {view.phase === 'reveal' && track && (
-        <>
-          {track.title && (
-            <div style={{ textAlign: 'center', fontSize: 20, fontWeight: 700 }}>
-              {track.title}
-              {track.artist ? ` — ${track.artist}` : ''}
-            </div>
-          )}
-          {view.reveal && (
-            <div
-              style={{
-                background: 'var(--surface)',
-                padding: 14,
-                borderRadius: 12,
-                color: 'var(--neon)',
-                fontWeight: 700,
-              }}
-            >
-              {view.reveal.comment}
-            </div>
-          )}
-        </>
+      {view.phase === 'reveal' && track?.title && (
+        <div style={{ textAlign: 'center', fontSize: 20, fontWeight: 700 }}>
+          {track.title}
+          {track.artist ? ` — ${track.artist}` : ''}
+        </div>
+      )}
+
+      {view.phase === 'reveal' && view.reveal && (
+        <div
+          style={{
+            background: 'var(--surface)',
+            padding: 14,
+            borderRadius: 12,
+            color: 'var(--neon)',
+            fontWeight: 700,
+          }}
+        >
+          {view.reveal.comment}
+        </div>
       )}
 
       {view.phase === 'finished' && standings[0] && (
@@ -476,8 +390,11 @@ function HostRoom({
       ))}
 
       {view.phase === 'finished' ? (
-        <button style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 12 }} onClick={onExit}>
-          ВЫЙТИ
+        <button
+          style={{ background: 'var(--neon)', color: 'var(--bg)', marginTop: 12 }}
+          onClick={() => window.location.reload()}
+        >
+          НОВАЯ ИГРА
         </button>
       ) : (
         <>
@@ -489,12 +406,6 @@ function HostRoom({
           </button>
           <EndButton />
         </>
-      )}
-
-      {view.phase === 'finished' && (
-        <div style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>
-          Спасибо за игру! Данные скоро исчезнут 💨
-        </div>
       )}
     </div>
   );

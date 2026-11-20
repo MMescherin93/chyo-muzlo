@@ -1,18 +1,16 @@
-import React, { useState } from 'react';
-import Landing from './Landing';
+import React from 'react';
 import HostApp from './host/HostApp';
 import GuestApp from './guest/GuestApp';
 
-type Mode = 'landing' | 'host' | 'guest';
-
+/**
+ * Корень приложения — это лобби-экран хоста (как в Jackbox).
+ * Гости попадают в игровой режим только по ссылке-приглашению `?code=...`.
+ */
 export default function App() {
-  // Если в ссылке есть ?code= — сразу входим как гость (по QR хоста).
   const hasCode = !!new URLSearchParams(location.search).get('code');
-  const [mode, setMode] = useState<Mode>(hasCode ? 'guest' : 'landing');
 
-  const backToLanding = () => setMode('landing');
-
-  if (mode === 'host') return <HostApp onExit={backToLanding} />;
-  if (mode === 'guest') return <GuestApp onExit={backToLanding} />;
-  return <Landing onCreate={() => setMode('host')} onJoin={() => setMode('guest')} />;
+  if (hasCode) {
+    return <GuestApp onExit={() => window.location.reload()} />;
+  }
+  return <HostApp />;
 }

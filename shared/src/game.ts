@@ -65,20 +65,16 @@ export class GameEngine {
     return this.room;
   }
 
-  /** Хост создаёт комнату. */
-  createRoom(hostNickname: string, durationMinutes: number): Room {
-    const host: Player = {
-      id: newId(),
-      nickname: hostNickname,
-      isHost: true,
-      score: 0,
-      avatar: '👑',
-    };
+  /**
+   * Хост создаёт комнату. Хост — это лобби-экран (как в Jackbox):
+   * он НЕ является игроком и не загружает треки.
+   */
+  createRoom(durationMinutes: number): Room {
     this.room = {
       code: makeCode(),
-      hostId: host.id,
+      hostId: newId(),
       phase: 'lobby',
-      players: [host],
+      players: [],
       tracks: [],
       rounds: [],
       currentRound: -1,
@@ -87,6 +83,13 @@ export class GameEngine {
     };
     this.emit();
     return this.room;
+  }
+
+  /** Хост меняет длительность партии до старта. */
+  setDuration(minutes: number): void {
+    if (this.room.phase !== 'lobby') return;
+    this.room.durationMinutes = minutes;
+    this.emit();
   }
 
   /** Гость подключается. Возвращает его id. Идемпотентно по id. */

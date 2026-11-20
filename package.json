@@ -13,6 +13,7 @@
     "build:shared": "npm run build -w @muzlo/shared",
     "build": "npm run build -w app",
     "host": "npm run build && node server/index.mjs",
+    "host:tunnel": "npm run build && node server/index.mjs --tunnel",
     "dev": "npm run dev -w app",
     "preview": "npm run preview -w app"
   }

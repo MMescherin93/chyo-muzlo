@@ -54,11 +54,10 @@ export function generateComment(ctx: CommentContext): string {
   if (ctx.nonAuthorCorrectNames.length > 0) {
     return fill(
       pick([
-        '«{track}» ({artist}) — это {author}. {guessers} угадали! Пул очков разыгран.',
-        'Трек «{track}» ({artist}). Автор — {author}. {guessers} в деле, пул разыгран!',
-        'Разгадка: «{track}» — {artist}. Это {author}. {guessers} знали!',
-        '{guessers} угадали автора трека «{track}» ({artist}). Это {author}. Респект!',
-        'Автор «{track}» ({artist}) — {author}. {guessers} не провести!',
+        '«{track}» ({artist}) — это {author}. Верно угадали: {guessers}. Пул очков разыгран.',
+        'Трек «{track}» ({artist}). Автор — {author}. Верно угадали: {guessers}.',
+        'Разгадка: «{track}» — {artist}. Это {author}. Верно угадали: {guessers}.',
+        'Автор «{track}» ({artist}) — {author}. Верно угадали: {guessers}. Респект!',
         '{detectives} — детективы вечеринки! Трек «{track}» ({artist}) от {author}.',
       ]),
       base,
