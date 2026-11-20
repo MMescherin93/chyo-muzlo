@@ -1,15 +1,14 @@
 /**
  * calculateScores — правила начисления очков за один раунд.
  *
- * Условия (из ТЗ §5):
- *   А) хотя бы один НЕ-автор угадал автора → пул делится поровну между ВСЕМИ
- *      (Math.floor(pool / players.length));
- *   Б) угадал только автор (одиночный) → 0 всем;
- *   В) несколько авторов, угадали только они сами → 0 всем;
- *   (вывод) никто не угадал → 0 всем.
+ * Формула:
+ *   N — количество игроков в партии;
+ *   Q — количество игроков, угадавших автора трека.
  *
- * Б и В — частный случай одного правила: «если правильно угадали только сами
- * авторы (или никто), пул не разыгрывается».
+ *   1) Если угадали только авторы трека (даже если авторов несколько)
+ *      или не угадал никто — очки не начисляются никому.
+ *   2) Иначе каждый угадавший получает Math.floor(N / Q) очков.
+ *      Неугадавшие получают 0.
  */
 
 export interface VoteResult {
@@ -17,69 +16,65 @@ export interface VoteResult {
   authors: string[];
   /** playerId -> votedPlayerId (или null, если не успел/воздержался). */
   votes: Record<string, string | null>;
-  /** Все игроки комнаты (для расчёта доли). */
+  /** Все игроки комнаты. */
   players: string[];
 }
 
 export interface ScoreDelta {
-  /** playerId -> прибавка очков за раунд (0, если пул не разыгран). */
+  /** playerId -> прибавка очков за раунд. */
   [playerId: string]: number;
 }
 
 export interface ScoringBreakdown {
-  /** Игроки, чей голос попал в автора. */
+  /** Игроки, чей голос попал в автора (Q). */
   correctGuessers: string[];
   /** Правильно угадавшие, НЕ являющиеся авторами. */
   nonAuthorCorrect: string[];
-  /** Пул разыгран (условие А сработало). */
+  /** Очки разыграны (сработало условие 2). */
   poolAwarded: boolean;
-  /** Очки, которые получит каждый (0, если пул не разыгран). */
-  sharePerPlayer: number;
-  /** Дробный остаток пула, «сгоревший» при округлении вниз. */
+  /** Сколько получил каждый угадавший. */
+  pointsPerGuesser: number;
+  /** Остаток от деления N / Q (сгорает при округлении вниз). */
   remainder: number;
+  /** N — игроков в партии, Q — угадавших. */
+  playersCount: number;
+  guessersCount: number;
 }
 
-/**
- * Полный расчёт раунда: возвращает и дельты очков, и разбивку (для комментариев
- * и отладки).
- */
-export function calculateRound(
-  args: VoteResult,
-  basePool = 100,
-): { scores: ScoreDelta; breakdown: ScoringBreakdown } {
+export function calculateRound(args: VoteResult): {
+  scores: ScoreDelta;
+  breakdown: ScoringBreakdown;
+} {
   const { authors, votes, players } = args;
 
-  // Голос считается «правильным», если игрок проголосовал за любого из авторов.
   const correctGuessers = players.filter(
     (p) => votes[p] != null && authors.includes(votes[p] as string),
   );
-
-  // Условие А: среди угадавших есть хотя бы один не-автор.
   const nonAuthorCorrect = correctGuessers.filter((p) => !authors.includes(p));
 
-  if (nonAuthorCorrect.length === 0) {
-    // Условия Б / В / никто не угадал → пул не разыгрывается.
-    const scores: ScoreDelta = {};
-    for (const p of players) scores[p] = 0;
+  const scores: ScoreDelta = {};
+  for (const p of players) scores[p] = 0;
 
+  // Угадали только авторы (или вообще никто) → очков нет.
+  if (nonAuthorCorrect.length === 0) {
     return {
       scores,
       breakdown: {
         correctGuessers,
         nonAuthorCorrect: [],
         poolAwarded: false,
-        sharePerPlayer: 0,
-        remainder: basePool,
+        pointsPerGuesser: 0,
+        remainder: players.length,
+        playersCount: players.length,
+        guessersCount: correctGuessers.length,
       },
     };
   }
 
-  // Условие А: делим поровну между всеми, дробная часть отбрасывается.
-  const sharePerPlayer = Math.floor(basePool / players.length);
-  const remainder = basePool - sharePerPlayer * players.length;
-
-  const scores: ScoreDelta = {};
-  for (const p of players) scores[p] = sharePerPlayer;
+  // Каждый угадавший получает floor(N / Q).
+  const pointsPerGuesser = Math.floor(players.length / correctGuessers.length);
+  const remainder = players.length - pointsPerGuesser * correctGuessers.length;
+  for (const p of correctGuessers) scores[p] = pointsPerGuesser;
 
   return {
     scores,
@@ -87,15 +82,15 @@ export function calculateRound(
       correctGuessers,
       nonAuthorCorrect,
       poolAwarded: true,
-      sharePerPlayer,
+      pointsPerGuesser,
       remainder,
+      playersCount: players.length,
+      guessersCount: correctGuessers.length,
     },
   };
 }
 
-/**
- * Упрощённая сигнатура «как в ТЗ» — возвращает только дельту очков.
- */
-export function calculateScores(args: VoteResult, basePool = 100): ScoreDelta {
-  return calculateRound(args, basePool).scores;
+/** Упрощённая сигнатура — возвращает только дельту очков. */
+export function calculateScores(args: VoteResult): ScoreDelta {
+  return calculateRound(args).scores;
 }
